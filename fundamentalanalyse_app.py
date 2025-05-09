@@ -11,30 +11,40 @@ st.write("Gib den Namen oder Ticker der Aktie ein (z. B. Apple oder AAPL):")
 
 user_input = st.text_input("Unternehmensname oder Ticker", "Apple")
 
-def get_ticker_from_name(name):
+def get_valid_ticker(user_input):
+    # 1. Versuche direkt den Ticker zu verwenden
+    ticker = yf.Ticker(user_input)
     try:
-        results = search(name)
+        info = ticker.info
+        if info and info != {}:
+            return user_input, info
+    except:
+        pass
+
+    # 2. Fallback: Suche per Namen
+    try:
+        results = search(user_input)
         if "quotes" in results and len(results["quotes"]) > 0:
-            return results["quotes"][0]["symbol"]
-        return None
+            symbol = results["quotes"][0]["symbol"]
+            ticker = yf.Ticker(symbol)
+            try:
+                info = ticker.info
+                if info and info != {}:
+                    return symbol, info
+            except:
+                return None, None
     except Exception as e:
         st.error(f"Fehler bei der Namenssuche: {e}")
-        return None
+    return None, None
 
 if user_input:
-    ticker_symbol = get_ticker_from_name(user_input)
-    if not ticker_symbol:
+    ticker_symbol, info = get_valid_ticker(user_input)
+    if not ticker_symbol or not info:
         st.error("Ticker konnte nicht gefunden werden. Bitte versuche es mit einem anderen Namen.")
     else:
         try:
+            st.write("🔍 Ticker-Info:", info)
             ticker = yf.Ticker(ticker_symbol)
-            try:
-                info = ticker.info
-                st.write("🔍 Ticker-Info:", info)
-            except Exception as e:
-                st.error(f"Fehler beim Abrufen der Ticker-Infos: {e}")
-                st.stop()
-
             hist = ticker.history(period="5y")
 
             # Fundamentaldaten abrufen
@@ -104,4 +114,4 @@ if user_input:
             st.dataframe(score_df.set_index("Kriterium"))
 
         except Exception as e:
-            st.error(f"Fehler bei der Datenabfrage: {e}")
+            st.error(f"Fehler bei der Datenverarbeitung: {e}")
