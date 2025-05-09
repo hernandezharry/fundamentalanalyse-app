@@ -3,6 +3,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from yahooquery import search
+import math
 
 st.set_page_config(page_title="Fundamentalanalyse", layout="centered")
 
@@ -35,55 +36,65 @@ def get_valid_ticker(user_input):
         st.error(f"Fehler bei der Namenssuche: {e}")
     return None, None
 
+def fmt(value):
+    if value is None or (isinstance(value, float) and (math.isnan(value) or abs(value) > 1e8)):
+        return "n.v."
+    return round(value, 2)
+
 if user_input:
     ticker_symbol, info = get_valid_ticker(user_input)
     if not ticker_symbol or not info:
         st.error("Ticker konnte nicht gefunden werden. Bitte versuche es mit einem anderen Namen.")
     else:
         try:
-            st.write("🔍 Ticker-Info:", info)
             ticker = yf.Ticker(ticker_symbol)
             hist = ticker.history(period="5y")
 
-            roe = info.get("returnOnEquity", 0) * 100
-            debt_to_equity = info.get("debtToEquity", 0)
-            pe_ratio = info.get("trailingPE", 0)
-            peg_ratio = info.get("pegRatio", 0)
-            pb_ratio = info.get("priceToBook", 0)
-            dividend_yield = info.get("dividendYield", 0) * 100
-            payout_ratio = info.get("payoutRatio", 0) * 100
-            profit_margin = info.get("profitMargins", 0) * 100
-            rev_growth = ((info.get("revenueGrowth", 0)) or 0) * 100
-            earn_growth = ((info.get("earningsGrowth", 0)) or 0) * 100
+            # Rohwerte abrufen
+            roe = fmt(info.get("returnOnEquity", 0) * 100)
+            debt_to_equity = fmt(info.get("debtToEquity", 0))
+            pe_ratio = fmt(info.get("trailingPE", 0))
+            peg_ratio = fmt(info.get("pegRatio", 0))
+            pb_ratio = fmt(info.get("priceToBook", 0))
+            dividend_yield = fmt(info.get("dividendYield", 0) * 100)
+            payout_ratio = fmt(info.get("payoutRatio", 0) * 100)
+            profit_margin = fmt(info.get("profitMargins", 0) * 100)
+            rev_growth = fmt((info.get("revenueGrowth", 0)) or 0 * 100)
+            earn_growth = fmt((info.get("earningsGrowth", 0)) or 0 * 100)
 
             def score_growth(growth):
-                if growth > 10:
-                    return 5
-                elif growth > 2:
-                    return 3
-                elif growth > 0:
-                    return 1
+                if isinstance(growth, str): return 0
+                if growth > 10: return 5
+                elif growth > 2: return 3
+                elif growth > 0: return 1
                 return 0
 
             def score_roe(roe):
+                if isinstance(roe, str): return 0
                 return 5 if roe > 15 else 3 if roe > 10 else 1 if roe > 5 else 0
 
             def score_de(de):
+                if isinstance(de, str): return 0
                 return 5 if de < 50 else 3 if de < 100 else 1
 
             def score_pe(pe):
+                if isinstance(pe, str): return 0
                 return 5 if pe < 15 else 3 if pe < 25 else 1
 
             def score_peg(peg):
+                if isinstance(peg, str): return 0
                 return 5 if peg < 1 else 3 if peg < 2 else 1
 
             def score_pb(pb):
+                if isinstance(pb, str): return 0
                 return 5 if pb < 1.5 else 3 if pb < 3 else 1
 
             def score_div(div, payout):
+                if isinstance(div, str) or isinstance(payout, str): return 0
                 return 5 if 2 <= div <= 5 and payout < 70 else 3 if div > 0 else 0
 
             def score_margin(margin):
+                if isinstance(margin, str): return 0
                 return 5 if margin > 20 else 3 if margin > 10 else 1
 
             metrics = {
