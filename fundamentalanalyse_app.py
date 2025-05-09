@@ -12,7 +12,6 @@ st.write("Gib den Namen oder Ticker der Aktie ein (z. B. Apple oder AAPL):")
 user_input = st.text_input("Unternehmensname oder Ticker", "Apple")
 
 def get_valid_ticker(user_input):
-    # 1. Versuche direkt den Ticker zu verwenden
     ticker = yf.Ticker(user_input)
     try:
         info = ticker.info
@@ -21,10 +20,9 @@ def get_valid_ticker(user_input):
     except:
         pass
 
-    # 2. Fallback: Suche per Namen
     try:
         results = search(user_input)
-        if "quotes" in results and len(results["quotes"]) > 0:
+        if "quotes" in results and len(results["quotes"]):
             symbol = results["quotes"][0]["symbol"]
             ticker = yf.Ticker(symbol)
             try:
@@ -47,7 +45,6 @@ if user_input:
             ticker = yf.Ticker(ticker_symbol)
             hist = ticker.history(period="5y")
 
-            # Fundamentaldaten abrufen
             roe = info.get("returnOnEquity", 0) * 100
             debt_to_equity = info.get("debtToEquity", 0)
             pe_ratio = info.get("trailingPE", 0)
@@ -56,12 +53,9 @@ if user_input:
             dividend_yield = info.get("dividendYield", 0) * 100
             payout_ratio = info.get("payoutRatio", 0) * 100
             profit_margin = info.get("profitMargins", 0) * 100
-
-            # Umsatz- und Gewinnwachstum approximieren
             rev_growth = ((info.get("revenueGrowth", 0)) or 0) * 100
             earn_growth = ((info.get("earningsGrowth", 0)) or 0) * 100
 
-            # Punkteberechnung
             def score_growth(growth):
                 if growth > 10:
                     return 5
@@ -92,6 +86,18 @@ if user_input:
             def score_margin(margin):
                 return 5 if margin > 20 else 3 if margin > 10 else 1
 
+            metrics = {
+                "Umsatzwachstum": rev_growth,
+                "Gewinnwachstum": earn_growth,
+                "Eigenkapitalrendite (ROE)": roe,
+                "Verschuldung (Debt/Equity)": debt_to_equity,
+                "KGV": pe_ratio,
+                "PEG-Ratio": peg_ratio,
+                "KBV": pb_ratio,
+                "Dividende": dividend_yield,
+                "Nettomarge": profit_margin,
+            }
+
             scores = {
                 "Umsatzwachstum": score_growth(rev_growth),
                 "Gewinnwachstum": score_growth(earn_growth),
@@ -110,8 +116,15 @@ if user_input:
             st.metric("Gesamtpunktzahl", f"{total_score}/45")
 
             st.write("### Einzelbewertungen:")
-            score_df = pd.DataFrame(scores.items(), columns=["Kriterium", "Punkte"])
+            score_df = pd.DataFrame({
+                "Kriterium": list(scores.keys()),
+                "Wert": list(metrics.values()),
+                "Punkte": list(scores.values())
+            })
             st.dataframe(score_df.set_index("Kriterium"))
+
+            csv = score_df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Download als CSV", data=csv, file_name=f"fundamentalanalyse_{ticker_symbol}.csv", mime='text/csv')
 
         except Exception as e:
             st.error(f"Fehler bei der Datenverarbeitung: {e}")
