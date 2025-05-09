@@ -17,7 +17,8 @@ def get_ticker_from_name(name):
         if "quotes" in results and len(results["quotes"]) > 0:
             return results["quotes"][0]["symbol"]
         return None
-    except:
+    except Exception as e:
+        st.error(f"Fehler bei der Namenssuche: {e}")
         return None
 
 if user_input:
@@ -27,7 +28,13 @@ if user_input:
     else:
         try:
             ticker = yf.Ticker(ticker_symbol)
-            info = ticker.info
+            try:
+                info = ticker.info
+                st.write("🔍 Ticker-Info:", info)
+            except Exception as e:
+                st.error(f"Fehler beim Abrufen der Ticker-Infos: {e}")
+                st.stop()
+
             hist = ticker.history(period="5y")
 
             # Fundamentaldaten abrufen
